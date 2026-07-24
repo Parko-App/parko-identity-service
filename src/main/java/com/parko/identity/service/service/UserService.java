@@ -32,9 +32,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Service
 public class UserService {
+
+    private static final int MIN_PASSWORD_LENGTH = 10;
+    private static final Pattern SPECIAL_CHARACTER_PATTERN = Pattern.compile("[^A-Za-z0-9]");
 
     private final UserRepository userRepository;
     private final BalanceAccountRepository balanceAccountRepository;
@@ -54,6 +58,8 @@ public class UserService {
         if (!request.termsAndConditionsAccepted()) {
             throw new IllegalArgumentException("Debe aceptar los términos y condiciones");
         }
+
+        validatePassword(request.password());
 
         Email email = new Email(request.email());
         if (email.getInstitutionalDomain() != request.institutionalDomain()) {
@@ -111,6 +117,24 @@ public class UserService {
         BigDecimal balance = findBalance(userEntity.getId());
         List<VehicleResponse> vehicles = findVehicles(userEntity.getId());
         return new UserWithBalanceAndVehiclesResponse(user, balance, vehicles);
+    }
+
+    private void validatePassword(String password) {
+        if (password == null || password.length() < MIN_PASSWORD_LENGTH) {
+            throw new IllegalArgumentException("La contraseña debe tener al menos " + MIN_PASSWORD_LENGTH + " caracteres");
+        }
+        if (password.chars().noneMatch(Character::isUpperCase)) {
+            throw new IllegalArgumentException("La contraseña debe contener al menos una letra mayúscula");
+        }
+        if (password.chars().noneMatch(Character::isLowerCase)) {
+            throw new IllegalArgumentException("La contraseña debe contener al menos una letra minúscula");
+        }
+        if (password.chars().noneMatch(Character::isDigit)) {
+            throw new IllegalArgumentException("La contraseña debe contener al menos un número");
+        }
+        if (!SPECIAL_CHARACTER_PATTERN.matcher(password).find()) {
+            throw new IllegalArgumentException("La contraseña debe contener al menos un carácter especial");
+        }
     }
 
     private String createFirebaseUser(CreateUserRequest request) {
