@@ -64,7 +64,7 @@ class UserServiceTest {
                 "Juan Perez",
                 "12345@frc.utn.edu.ar",
                 "12345",
-                "password123",
+                "Password123!",
                 InstitutionalDomain.FRC,
                 true
         );
@@ -93,7 +93,7 @@ class UserServiceTest {
     @Test
     void createUser_termsNotAccepted_throws() {
         CreateUserRequest request = new CreateUserRequest(
-                "Juan Perez", "12345@frc.utn.edu.ar", "12345", "password123", InstitutionalDomain.FRC, false);
+                "Juan Perez", "12345@frc.utn.edu.ar", "12345", "Password123!", InstitutionalDomain.FRC, false);
 
         assertThatThrownBy(() -> userService.createUser(request))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -104,7 +104,7 @@ class UserServiceTest {
     @Test
     void createUser_institutionalDomainMismatch_throws() {
         CreateUserRequest request = new CreateUserRequest(
-                "Juan Perez", "12345@sistemas.frc.utn.edu.ar", "12345", "password123", InstitutionalDomain.FRC, true);
+                "Juan Perez", "12345@sistemas.frc.utn.edu.ar", "12345", "Password123!", InstitutionalDomain.FRC, true);
 
         assertThatThrownBy(() -> userService.createUser(request))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -115,12 +115,72 @@ class UserServiceTest {
     @Test
     void createUser_studentIdDoesNotMatchEmail_throws() {
         CreateUserRequest request = new CreateUserRequest(
-                "Juan Perez", "12345@frc.utn.edu.ar", "99999", "password123", InstitutionalDomain.FRC, true);
+                "Juan Perez", "12345@frc.utn.edu.ar", "99999", "Password123!", InstitutionalDomain.FRC, true);
 
         assertThatThrownBy(() -> userService.createUser(request))
                 .isInstanceOf(IllegalArgumentException.class);
 
         verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void createUser_passwordTooShort_throws() {
+        CreateUserRequest request = requestWithPassword("Pass1!");
+
+        assertThatThrownBy(() -> userService.createUser(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("10 caracteres");
+
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void createUser_passwordWithoutUppercase_throws() {
+        CreateUserRequest request = requestWithPassword("password123!");
+
+        assertThatThrownBy(() -> userService.createUser(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("mayúscula");
+
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void createUser_passwordWithoutLowercase_throws() {
+        CreateUserRequest request = requestWithPassword("PASSWORD123!");
+
+        assertThatThrownBy(() -> userService.createUser(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("minúscula");
+
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void createUser_passwordWithoutNumber_throws() {
+        CreateUserRequest request = requestWithPassword("Password!!!");
+
+        assertThatThrownBy(() -> userService.createUser(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("número");
+
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void createUser_passwordWithoutSpecialCharacter_throws() {
+        CreateUserRequest request = requestWithPassword("Password1234");
+
+        assertThatThrownBy(() -> userService.createUser(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("carácter especial");
+
+        verify(userRepository, never()).save(any());
+    }
+
+    private CreateUserRequest requestWithPassword(String password) {
+        return new CreateUserRequest(
+                "Juan Perez", "12345@frc.utn.edu.ar", "12345", password, InstitutionalDomain.FRC, true);
     }
 
     @Test
