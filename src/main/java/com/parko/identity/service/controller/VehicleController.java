@@ -5,6 +5,7 @@ import com.parko.identity.service.dto.response.VehicleResponse;
 import com.parko.identity.service.service.VehicleService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -26,19 +27,25 @@ public class VehicleController {
     }
 
     @GetMapping("/user/{userId}")
-    public ResponseEntity<List<VehicleResponse>> getByUser(@PathVariable String userId) {
-        return ResponseEntity.ok(vehicleService.getVehiclesByUser(userId));
+    public ResponseEntity<List<VehicleResponse>> getByUser(@PathVariable String userId, Authentication authentication) {
+        return ResponseEntity.ok(vehicleService.getVehiclesByUser(userId, authentication.getName()));
     }
 
     @PostMapping("/user/{userId}")
-    public ResponseEntity<VehicleResponse> create(@PathVariable String userId, @RequestBody CreateVehicleRequest request) {
-        VehicleResponse created = vehicleService.createVehicle(userId, request);
+    public ResponseEntity<VehicleResponse> create(@PathVariable String userId, @RequestBody CreateVehicleRequest request,
+                                                   Authentication authentication) {
+        VehicleResponse created = vehicleService.createVehicle(userId, request, authentication.getName());
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<VehicleResponse> getById(@PathVariable String id, Authentication authentication) {
+        return ResponseEntity.ok(vehicleService.getVehicle(id, authentication.getName()));
+    }
+
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable String id) {
-        vehicleService.deleteVehicle(id);
+    public ResponseEntity<Void> delete(@PathVariable String id, Authentication authentication) {
+        vehicleService.deleteVehicle(id, authentication.getName());
         return ResponseEntity.noContent().build();
     }
 }

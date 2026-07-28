@@ -1,0 +1,445 @@
+openapi: 3.0.3
+info:
+  title: Parko Identity Service
+  description: >
+    Microservicio de identidad de Parko: alta y consulta de usuarios (estudiantes),
+    su saldo, y sus vehículos. La autenticación de los endpoints protegidos se hace
+    con un ID token de Firebase; el ownership se valida contra el `firebaseUid`
+    resuelto de ese token.
+  version: "1.0.0"
+servers:
+  - url: http://localhost:8080
+    description: Local
+
+tags:
+  - name: User
+    description: Alta, consulta y baja lógica de usuarios
+  - name: Vehicle
+    description: Alta, consulta y baja lógica de vehículos de un usuario
+
+security:
+  - firebaseAuth: []
+
+paths:
+  /api/user:
+    post:
+      tags: [User]
+      summary: Registrar un nuevo usuario
+      description: >
+        Crea el usuario en Firebase Auth y en la base de datos, junto con su cuenta
+        de saldo inicial. No requiere autenticación (es el propio registro).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: Usuario creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          description: >
+            Datos inválidos (contraseña débil, términos no aceptados, dominio
+            institucional no coincide con el email, etc.) o falla al crear el
+            usuario en Firebase
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/user/{id}:
+    get:
+      tags: [User]
+      summary: Obtener un usuario por su firebaseUid
+      parameters:
+        - $ref: '#/components/parameters/UserFirebaseUidPath'
+      responses:
+        '200':
+          description: Usuario encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [User]
+      summary: Dar de baja (soft delete) un usuario
+      parameters:
+        - $ref: '#/components/parameters/UserFirebaseUidPath'
+      responses:
+        '204':
+          description: Usuario dado de baja
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/user/{id}/balance:
+    get:
+      tags: [User]
+      summary: Obtener un usuario junto con su saldo
+      parameters:
+        - $ref: '#/components/parameters/UserFirebaseUidPath'
+      responses:
+        '200':
+          description: Usuario y saldo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserWithBalanceResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/user/{id}/vehicles:
+    get:
+      tags: [User]
+      summary: Obtener un usuario junto con sus vehículos activos
+      parameters:
+        - $ref: '#/components/parameters/UserFirebaseUidPath'
+      responses:
+        '200':
+          description: Usuario y lista de vehículos activos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserWithVehiclesResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/user/{id}/full:
+    get:
+      tags: [User]
+      summary: Obtener un usuario junto con su saldo y sus vehículos activos
+      parameters:
+        - $ref: '#/components/parameters/UserFirebaseUidPath'
+      responses:
+        '200':
+          description: Usuario, saldo y lista de vehículos activos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserWithBalanceAndVehiclesResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/vehicle/user/{userId}:
+    get:
+      tags: [Vehicle]
+      summary: Listar los vehículos activos de un usuario
+      parameters:
+        - $ref: '#/components/parameters/UserInternalIdPath'
+      responses:
+        '200':
+          description: Lista de vehículos activos del usuario
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VehicleResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Vehicle]
+      summary: Registrar un vehículo para un usuario
+      description: >
+        Falla con 400 si el usuario ya tiene 3 vehículos activos, o si la patente
+        o la marca no cumplen el formato esperado.
+      parameters:
+        - $ref: '#/components/parameters/UserInternalIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVehicleRequest'
+      responses:
+        '201':
+          description: Vehículo creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VehicleResponse'
+        '400':
+          description: Límite de vehículos activos alcanzado o datos inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Ya existe un vehículo con esa patente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/vehicle/{id}:
+    get:
+      tags: [Vehicle]
+      summary: Obtener el detalle de un vehículo por su id
+      parameters:
+        - $ref: '#/components/parameters/VehicleIdPath'
+      responses:
+        '200':
+          description: Vehículo encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VehicleResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Vehicle]
+      summary: Dar de baja (soft delete) un vehículo
+      parameters:
+        - $ref: '#/components/parameters/VehicleIdPath'
+      responses:
+        '204':
+          description: Vehículo dado de baja
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    firebaseAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Firebase ID token
+      description: >
+        Token de ID de Firebase Auth (`Authorization: Bearer <idToken>`). El uid
+        verificado del token se usa como identidad para los chequeos de ownership.
+
+  parameters:
+    UserFirebaseUidPath:
+      name: id
+      in: path
+      required: true
+      description: firebaseUid del usuario (debe coincidir con el uid autenticado)
+      schema:
+        type: string
+    UserInternalIdPath:
+      name: userId
+      in: path
+      required: true
+      description: UUID interno del usuario (no es el firebaseUid)
+      schema:
+        type: string
+        format: uuid
+    VehicleIdPath:
+      name: id
+      in: path
+      required: true
+      description: UUID del vehículo
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    Unauthorized:
+      description: No se envió un token válido de Firebase
+    Forbidden:
+      description: El usuario autenticado no es dueño del recurso solicitado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: El recurso solicitado no existe
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    InstitutionalDomain:
+      type: string
+      enum:
+        - CBASICAS
+        - CIVIL
+        - COMPUTOS
+        - DECANATO
+        - EGRESADO
+        - ELECTRICA
+        - ELECTRONICA
+        - EXTENSION
+        - INDUSTRIAL
+        - LICENCIATURA
+        - MECANICA
+        - METALURGICA
+        - ORG
+        - POSGRADO
+        - PUNILLA
+        - QUIMICA
+        - RADIO
+        - SA
+        - SAE
+        - SCDT
+        - SISTEMAS
+        - TECNICATURA
+        - VIRTUAL
+        - FRC
+
+    UserRole:
+      type: string
+      enum: [STUDENT, STAFF, ADMIN, VISITOR]
+
+    CreateUserRequest:
+      type: object
+      required:
+        - fullName
+        - email
+        - studentId
+        - password
+        - institutionalDomain
+        - termsAndConditionsAccepted
+      properties:
+        fullName:
+          type: string
+        email:
+          type: string
+          format: email
+        studentId:
+          type: string
+        password:
+          type: string
+          format: password
+          description: >
+            Mínimo 10 caracteres, al menos una mayúscula, una minúscula, un
+            número y un carácter especial
+        institutionalDomain:
+          $ref: '#/components/schemas/InstitutionalDomain'
+        termsAndConditionsAccepted:
+          type: boolean
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        studentId:
+          type: string
+        fullName:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/UserRole'
+        active:
+          type: boolean
+
+    UserWithBalanceResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/UserResponse'
+        balance:
+          type: number
+          format: decimal
+
+    UserWithVehiclesResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/UserResponse'
+        vehicles:
+          type: array
+          items:
+            $ref: '#/components/schemas/VehicleResponse'
+
+    UserWithBalanceAndVehiclesResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/UserResponse'
+        balance:
+          type: number
+          format: decimal
+        vehicles:
+          type: array
+          items:
+            $ref: '#/components/schemas/VehicleResponse'
+
+    CreateVehicleRequest:
+      type: object
+      required: [plate, brand, model]
+      properties:
+        plate:
+          type: string
+        brand:
+          type: string
+        model:
+          type: string
+
+    VehicleResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        plate:
+          type: string
+        brand:
+          type: string
+        model:
+          type: string
+        active:
+          type: boolean
+
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+        path:
+          type: string

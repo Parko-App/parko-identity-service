@@ -185,19 +185,18 @@ class UserServiceTest {
 
     @Test
     void getUser_notFound_throwsNoSuchElement() {
-        UUID id = UUID.randomUUID();
-        when(userRepository.findById(id)).thenReturn(Optional.empty());
+        when(userRepository.findByFirebaseUid("missing-uid")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> userService.getUser(id.toString()))
+        assertThatThrownBy(() -> userService.getUser("missing-uid"))
                 .isInstanceOf(NoSuchElementException.class);
     }
 
     @Test
     void getUser_found_returnsResponse() {
         UserEntity entity = sampleUserEntity();
-        when(userRepository.findById(entity.getId())).thenReturn(Optional.of(entity));
+        when(userRepository.findByFirebaseUid(entity.getFirebaseUid())).thenReturn(Optional.of(entity));
 
-        UserResponse response = userService.getUser(entity.getId().toString());
+        UserResponse response = userService.getUser(entity.getFirebaseUid());
 
         assertThat(response.id()).isEqualTo(entity.getId());
         assertThat(response.studentId()).isEqualTo(entity.getStudentId());
@@ -213,10 +212,10 @@ class UserServiceTest {
         balanceAccountEntity.setCreatedAt(LocalDateTime.now());
         balanceAccountEntity.setUpdatedAt(LocalDateTime.now());
 
-        when(userRepository.findById(userEntity.getId())).thenReturn(Optional.of(userEntity));
+        when(userRepository.findByFirebaseUid(userEntity.getFirebaseUid())).thenReturn(Optional.of(userEntity));
         when(balanceAccountRepository.findByUserId(userEntity.getId())).thenReturn(Optional.of(balanceAccountEntity));
 
-        UserWithBalanceResponse response = userService.getUserWithBalance(userEntity.getId().toString());
+        UserWithBalanceResponse response = userService.getUserWithBalance(userEntity.getFirebaseUid());
 
         assertThat(response.balance()).isEqualByComparingTo("100.00");
         assertThat(response.user().id()).isEqualTo(userEntity.getId());
@@ -227,10 +226,10 @@ class UserServiceTest {
         UserEntity userEntity = sampleUserEntity();
         VehicleEntity vehicleEntity = sampleVehicleEntity(userEntity);
 
-        when(userRepository.findById(userEntity.getId())).thenReturn(Optional.of(userEntity));
-        when(vehicleRepository.findByUserId(userEntity.getId())).thenReturn(List.of(vehicleEntity));
+        when(userRepository.findByFirebaseUid(userEntity.getFirebaseUid())).thenReturn(Optional.of(userEntity));
+        when(vehicleRepository.findByUserIdAndActiveTrue(userEntity.getId())).thenReturn(List.of(vehicleEntity));
 
-        UserWithVehiclesResponse response = userService.getUserWithVehicles(userEntity.getId().toString());
+        UserWithVehiclesResponse response = userService.getUserWithVehicles(userEntity.getFirebaseUid());
 
         assertThat(response.vehicles()).hasSize(1);
         assertThat(response.vehicles().get(0).plate()).isEqualTo("AB123CD");
@@ -247,12 +246,12 @@ class UserServiceTest {
         balanceAccountEntity.setCreatedAt(LocalDateTime.now());
         balanceAccountEntity.setUpdatedAt(LocalDateTime.now());
 
-        when(userRepository.findById(userEntity.getId())).thenReturn(Optional.of(userEntity));
+        when(userRepository.findByFirebaseUid(userEntity.getFirebaseUid())).thenReturn(Optional.of(userEntity));
         when(balanceAccountRepository.findByUserId(userEntity.getId())).thenReturn(Optional.of(balanceAccountEntity));
-        when(vehicleRepository.findByUserId(userEntity.getId())).thenReturn(List.of(vehicleEntity));
+        when(vehicleRepository.findByUserIdAndActiveTrue(userEntity.getId())).thenReturn(List.of(vehicleEntity));
 
         UserWithBalanceAndVehiclesResponse response =
-                userService.getUserWithBalanceAndVehicles(userEntity.getId().toString());
+                userService.getUserWithBalanceAndVehicles(userEntity.getFirebaseUid());
 
         assertThat(response.balance()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(response.vehicles()).hasSize(1);
@@ -262,9 +261,9 @@ class UserServiceTest {
     @Test
     void deleteUser_setsInactiveAndSaves() {
         UserEntity entity = sampleUserEntity();
-        when(userRepository.findById(entity.getId())).thenReturn(Optional.of(entity));
+        when(userRepository.findByFirebaseUid(entity.getFirebaseUid())).thenReturn(Optional.of(entity));
 
-        userService.deleteUser(entity.getId().toString());
+        userService.deleteUser(entity.getFirebaseUid());
 
         assertThat(entity.isActive()).isFalse();
         verify(userRepository).save(entity);
@@ -272,10 +271,9 @@ class UserServiceTest {
 
     @Test
     void deleteUser_notFound_throwsNoSuchElement() {
-        UUID id = UUID.randomUUID();
-        when(userRepository.findById(id)).thenReturn(Optional.empty());
+        when(userRepository.findByFirebaseUid("missing-uid")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> userService.deleteUser(id.toString()))
+        assertThatThrownBy(() -> userService.deleteUser("missing-uid"))
                 .isInstanceOf(NoSuchElementException.class);
     }
 
