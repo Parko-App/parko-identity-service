@@ -150,10 +150,9 @@ public class UserService {
         }
     }
 
-    private UserEntity findUserEntity(String id) {
-        UUID userId = UUID.fromString(id);
-        return userRepository.findById(userId)
-                .orElseThrow(() -> new NoSuchElementException("Usuario no encontrado: " + id));
+    private UserEntity findUserEntity(String firebaseUid) {
+        return userRepository.findByFirebaseUid(firebaseUid)
+                .orElseThrow(() -> new NoSuchElementException("Usuario no encontrado: " + firebaseUid));
     }
 
     private BigDecimal findBalance(UUID userId) {
@@ -164,7 +163,7 @@ public class UserService {
     }
 
     private List<VehicleResponse> findVehicles(UUID userId) {
-        List<VehicleEntity> vehicleEntities = vehicleRepository.findByUserId(userId);
+        List<VehicleEntity> vehicleEntities = vehicleRepository.findByUserIdAndActiveTrue(userId);
         return vehicleEntities.stream()
                 .map(entity -> VehicleConverter.toResponse(
                         entity.getId(),

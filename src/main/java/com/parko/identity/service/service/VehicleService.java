@@ -4,10 +4,12 @@ import com.parko.domain.lib.model.Vehicle;
 import com.parko.identity.service.converter.VehicleConverter;
 import com.parko.identity.service.dto.request.CreateVehicleRequest;
 import com.parko.identity.service.dto.response.VehicleResponse;
+import com.parko.persistence.core.model.entity.UserEntity;
 import com.parko.persistence.core.model.embedded.VehicleEmbedded;
 import com.parko.persistence.core.model.entity.VehicleEntity;
 import com.parko.persistence.core.repository.UserRepository;
 import com.parko.persistence.core.repository.VehicleRepository;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,11 +31,11 @@ public class VehicleService {
         this.userRepository = userRepository;
     }
 
-    public List<VehicleResponse> getVehiclesByUser(String userId) {
+    public List<VehicleResponse> getVehiclesByUser(String userId, String firebaseUid) {
         UUID uid = parseUserId(userId);
-        ensureUserExists(uid);
+        ensureOwnership(uid, firebaseUid);
 
-        return vehicleRepository.findByUserId(uid).stream()
+        return vehicleRepository.findByUserIdAndActiveTrue(uid).stream()
                 .map(entity -> VehicleConverter.toResponse(
                         entity.getId(),
                         com.parko.persistence.core.converters.VehicleConverter.toEmbedded(entity)))
@@ -41,9 +43,9 @@ public class VehicleService {
     }
 
     @Transactional
-    public VehicleResponse createVehicle(String userId, CreateVehicleRequest request) {
+    public VehicleResponse createVehicle(String userId, CreateVehicleRequest request, String firebaseUid) {
         UUID uid = parseUserId(userId);
-        ensureUserExists(uid);
+        ensureOwnership(uid, firebaseUid);
         ensureActiveVehicleLimitNotReached(uid);
 
         Vehicle vehicle = new Vehicle(uid, request.plate(), request.brand(), request.model());
@@ -58,29 +60,44 @@ public class VehicleService {
         return VehicleConverter.toResponse(saved.getId(), savedEmbedded);
     }
 
+    public VehicleResponse getVehicle(String id, String firebaseUid) {
+        VehicleEntity entity = findOwnedVehicle(id, firebaseUid);
+        return VehicleConverter.toResponse(
+                entity.getId(),
+                com.parko.persistence.core.converters.VehicleConverter.toEmbedded(entity));
+    }
+
     @Transactional
-    public void deleteVehicle(String id) {
+    public void deleteVehicle(String id, String firebaseUid) {
+        VehicleEntity entity = findOwnedVehicle(id, firebaseUid);
+        entity.setActive(false);
+        vehicleRepository.save(entity);
+    }
+
+    private VehicleEntity findOwnedVehicle(String id, String firebaseUid) {
         UUID vehicleId = UUID.fromString(id);
         VehicleEntity entity = vehicleRepository.findById(vehicleId)
                 .orElseThrow(() -> new NoSuchElementException("Vehículo no encontrado: " + id));
-        entity.setActive(false);
-        vehicleRepository.save(entity);
+        if (!entity.getUser().getFirebaseUid().equals(firebaseUid)) {
+            throw new AccessDeniedException("No tiene permisos sobre el vehículo: " + id);
+        }
+        return entity;
     }
 
     private UUID parseUserId(String userId) {
         return UUID.fromString(userId);
     }
 
-    private void ensureUserExists(UUID userId) {
-        if (!userRepository.existsById(userId)) {
-            throw new NoSuchElementException("Usuario no encontrado: " + userId);
+    private void ensureOwnership(UUID userId, String firebaseUid) {
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new NoSuchElementException("Usuario no encontrado: " + userId));
+        if (!user.getFirebaseUid().equals(firebaseUid)) {
+            throw new AccessDeniedException("No tiene permisos sobre el usuario: " + userId);
         }
     }
 
     private void ensureActiveVehicleLimitNotReached(UUID userId) {
-        long activeCount = vehicleRepository.findByUserId(userId).stream()
-                .filter(VehicleEntity::isActive)
-                .count();
+        long activeCount = vehicleRepository.findByUserIdAndActiveTrue(userId).size();
         if (activeCount >= MAX_ACTIVE_VEHICLES) {
             throw new IllegalArgumentException(
                     "El usuario ya tiene el máximo de " + MAX_ACTIVE_VEHICLES + " vehículos activos"

@@ -39,6 +39,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(GlobalExceptionHandler.class)
 class UserControllerTest {
 
+    private static final String FIREBASE_UID = "firebase-uid-123";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -84,19 +86,18 @@ class UserControllerTest {
     @Test
     void getById_found_returnsOk() throws Exception {
         UUID id = UUID.randomUUID();
-        when(userService.getUser(id.toString())).thenReturn(sampleUserResponse(id));
+        when(userService.getUser(FIREBASE_UID)).thenReturn(sampleUserResponse(id));
 
-        mockMvc.perform(get("/api/user/{id}", id))
+        mockMvc.perform(get("/api/user/{id}", FIREBASE_UID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id.toString()));
     }
 
     @Test
     void getById_notFound_returnsNotFound() throws Exception {
-        UUID id = UUID.randomUUID();
-        when(userService.getUser(id.toString())).thenThrow(new NoSuchElementException("Usuario no encontrado: " + id));
+        when(userService.getUser(FIREBASE_UID)).thenThrow(new NoSuchElementException("Usuario no encontrado: " + FIREBASE_UID));
 
-        mockMvc.perform(get("/api/user/{id}", id))
+        mockMvc.perform(get("/api/user/{id}", FIREBASE_UID))
                 .andExpect(status().isNotFound());
     }
 
@@ -104,9 +105,9 @@ class UserControllerTest {
     void getByIdWithBalance_returnsOk() throws Exception {
         UUID id = UUID.randomUUID();
         UserWithBalanceResponse response = new UserWithBalanceResponse(sampleUserResponse(id), new BigDecimal("50.00"));
-        when(userService.getUserWithBalance(id.toString())).thenReturn(response);
+        when(userService.getUserWithBalance(FIREBASE_UID)).thenReturn(response);
 
-        mockMvc.perform(get("/api/user/{id}/balance", id))
+        mockMvc.perform(get("/api/user/{id}/balance", FIREBASE_UID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.balance").value(50.00));
     }
@@ -116,9 +117,9 @@ class UserControllerTest {
         UUID id = UUID.randomUUID();
         VehicleResponse vehicle = new VehicleResponse(UUID.randomUUID(), "AB123CD", "Toyota", "Corolla", true);
         UserWithVehiclesResponse response = new UserWithVehiclesResponse(sampleUserResponse(id), List.of(vehicle));
-        when(userService.getUserWithVehicles(id.toString())).thenReturn(response);
+        when(userService.getUserWithVehicles(FIREBASE_UID)).thenReturn(response);
 
-        mockMvc.perform(get("/api/user/{id}/vehicles", id))
+        mockMvc.perform(get("/api/user/{id}/vehicles", FIREBASE_UID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.vehicles[0].plate").value("AB123CD"));
     }
@@ -129,9 +130,9 @@ class UserControllerTest {
         VehicleResponse vehicle = new VehicleResponse(UUID.randomUUID(), "AB123CD", "Toyota", "Corolla", true);
         UserWithBalanceAndVehiclesResponse response =
                 new UserWithBalanceAndVehiclesResponse(sampleUserResponse(id), BigDecimal.TEN, List.of(vehicle));
-        when(userService.getUserWithBalanceAndVehicles(id.toString())).thenReturn(response);
+        when(userService.getUserWithBalanceAndVehicles(FIREBASE_UID)).thenReturn(response);
 
-        mockMvc.perform(get("/api/user/{id}/full", id))
+        mockMvc.perform(get("/api/user/{id}/full", FIREBASE_UID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.balance").value(10))
                 .andExpect(jsonPath("$.vehicles[0].brand").value("Toyota"));
@@ -139,21 +140,18 @@ class UserControllerTest {
 
     @Test
     void delete_returnsNoContent() throws Exception {
-        UUID id = UUID.randomUUID();
-
-        mockMvc.perform(delete("/api/user/{id}", id))
+        mockMvc.perform(delete("/api/user/{id}", FIREBASE_UID))
                 .andExpect(status().isNoContent());
 
-        verify(userService).deleteUser(eq(id.toString()));
+        verify(userService).deleteUser(eq(FIREBASE_UID));
     }
 
     @Test
     void delete_notFound_returnsNotFound() throws Exception {
-        UUID id = UUID.randomUUID();
-        org.mockito.Mockito.doThrow(new NoSuchElementException("Usuario no encontrado: " + id))
-                .when(userService).deleteUser(id.toString());
+        org.mockito.Mockito.doThrow(new NoSuchElementException("Usuario no encontrado: " + FIREBASE_UID))
+                .when(userService).deleteUser(FIREBASE_UID);
 
-        mockMvc.perform(delete("/api/user/{id}", id))
+        mockMvc.perform(delete("/api/user/{id}", FIREBASE_UID))
                 .andExpect(status().isNotFound());
     }
 }
