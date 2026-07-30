@@ -10,7 +10,7 @@ import java.util.function.Supplier;
 
 public class UserOwnershipAuthorizationManager implements AuthorizationManager<RequestAuthorizationContext> {
 
-    private static final String PREFIX = "/api/user/";
+    private static final String PREFIX = "/api/v1/user/";
 
     @Override
     public AuthorizationDecision authorize(Supplier<? extends Authentication> authentication, RequestAuthorizationContext context) {

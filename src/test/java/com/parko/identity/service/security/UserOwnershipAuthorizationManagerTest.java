@@ -21,7 +21,7 @@ class UserOwnershipAuthorizationManagerTest {
     void grants_whenAuthenticatedUidMatchesPathId() {
         AuthorizationDecision decision = manager.authorize(
                 () -> authFor("firebase-uid-123"),
-                contextForUri("/api/user/firebase-uid-123/balance"));
+                contextForUri("/api/v1/user/firebase-uid-123/balance"));
 
         assertThat(decision.isGranted()).isTrue();
     }
@@ -30,7 +30,7 @@ class UserOwnershipAuthorizationManagerTest {
     void denies_whenAuthenticatedUidDoesNotMatchPathId() {
         AuthorizationDecision decision = manager.authorize(
                 () -> authFor("someone-else-uid"),
-                contextForUri("/api/user/firebase-uid-123"));
+                contextForUri("/api/v1/user/firebase-uid-123"));
 
         assertThat(decision.isGranted()).isFalse();
     }
@@ -39,7 +39,7 @@ class UserOwnershipAuthorizationManagerTest {
     void denies_whenNoAuthentication() {
         AuthorizationDecision decision = manager.authorize(
                 () -> null,
-                contextForUri("/api/user/firebase-uid-123"));
+                contextForUri("/api/v1/user/firebase-uid-123"));
 
         assertThat(decision.isGranted()).isFalse();
     }

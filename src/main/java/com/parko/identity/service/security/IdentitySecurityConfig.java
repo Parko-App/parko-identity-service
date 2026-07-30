@@ -27,9 +27,9 @@ public class IdentitySecurityConfig {
         return http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.POST, "/api/user").permitAll()
-                        .requestMatchers("/api/user/*", "/api/user/*/**").access(new UserOwnershipAuthorizationManager())
-                        .requestMatchers("/api/vehicle/user/**", "/api/vehicle/*").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/user").permitAll()
+                        .requestMatchers("/api/v1/user/*", "/api/v1/user/*/**").access(new UserOwnershipAuthorizationManager())
+                        .requestMatchers("/api/v1/vehicle/user/**", "/api/v1/vehicle/*").authenticated()
                         .anyRequest().permitAll())
                 .addFilterBefore(new FirebaseAuthenticationFilter(firebaseAuth), UsernamePasswordAuthenticationFilter.class)
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(
