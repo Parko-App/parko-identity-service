@@ -61,7 +61,7 @@ class UserControllerTest {
                 "Juan Perez", "12345@frc.utn.edu.ar", "12345", "password123", InstitutionalDomain.FRC, true);
         when(userService.createUser(any(CreateUserRequest.class))).thenReturn(sampleUserResponse(id));
 
-        mockMvc.perform(post("/api/user")
+        mockMvc.perform(post("/api/v1/user")
                         .contentType("application/json")
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -76,7 +76,7 @@ class UserControllerTest {
         when(userService.createUser(any(CreateUserRequest.class)))
                 .thenThrow(new IllegalArgumentException("Debe aceptar los términos y condiciones"));
 
-        mockMvc.perform(post("/api/user")
+        mockMvc.perform(post("/api/v1/user")
                         .contentType("application/json")
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -88,7 +88,7 @@ class UserControllerTest {
         UUID id = UUID.randomUUID();
         when(userService.getUser(FIREBASE_UID)).thenReturn(sampleUserResponse(id));
 
-        mockMvc.perform(get("/api/user/{id}", FIREBASE_UID))
+        mockMvc.perform(get("/api/v1/user/{id}", FIREBASE_UID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id.toString()));
     }
@@ -97,7 +97,7 @@ class UserControllerTest {
     void getById_notFound_returnsNotFound() throws Exception {
         when(userService.getUser(FIREBASE_UID)).thenThrow(new NoSuchElementException("Usuario no encontrado: " + FIREBASE_UID));
 
-        mockMvc.perform(get("/api/user/{id}", FIREBASE_UID))
+        mockMvc.perform(get("/api/v1/user/{id}", FIREBASE_UID))
                 .andExpect(status().isNotFound());
     }
 
@@ -107,7 +107,7 @@ class UserControllerTest {
         UserWithBalanceResponse response = new UserWithBalanceResponse(sampleUserResponse(id), new BigDecimal("50.00"));
         when(userService.getUserWithBalance(FIREBASE_UID)).thenReturn(response);
 
-        mockMvc.perform(get("/api/user/{id}/balance", FIREBASE_UID))
+        mockMvc.perform(get("/api/v1/user/{id}/balance", FIREBASE_UID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.balance").value(50.00));
     }
@@ -119,7 +119,7 @@ class UserControllerTest {
         UserWithVehiclesResponse response = new UserWithVehiclesResponse(sampleUserResponse(id), List.of(vehicle));
         when(userService.getUserWithVehicles(FIREBASE_UID)).thenReturn(response);
 
-        mockMvc.perform(get("/api/user/{id}/vehicles", FIREBASE_UID))
+        mockMvc.perform(get("/api/v1/user/{id}/vehicles", FIREBASE_UID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.vehicles[0].plate").value("AB123CD"));
     }
@@ -132,7 +132,7 @@ class UserControllerTest {
                 new UserWithBalanceAndVehiclesResponse(sampleUserResponse(id), BigDecimal.TEN, List.of(vehicle));
         when(userService.getUserWithBalanceAndVehicles(FIREBASE_UID)).thenReturn(response);
 
-        mockMvc.perform(get("/api/user/{id}/full", FIREBASE_UID))
+        mockMvc.perform(get("/api/v1/user/{id}/full", FIREBASE_UID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.balance").value(10))
                 .andExpect(jsonPath("$.vehicles[0].brand").value("Toyota"));
@@ -140,7 +140,7 @@ class UserControllerTest {
 
     @Test
     void delete_returnsNoContent() throws Exception {
-        mockMvc.perform(delete("/api/user/{id}", FIREBASE_UID))
+        mockMvc.perform(delete("/api/v1/user/{id}", FIREBASE_UID))
                 .andExpect(status().isNoContent());
 
         verify(userService).deleteUser(eq(FIREBASE_UID));
@@ -151,7 +151,7 @@ class UserControllerTest {
         org.mockito.Mockito.doThrow(new NoSuchElementException("Usuario no encontrado: " + FIREBASE_UID))
                 .when(userService).deleteUser(FIREBASE_UID);
 
-        mockMvc.perform(delete("/api/user/{id}", FIREBASE_UID))
+        mockMvc.perform(delete("/api/v1/user/{id}", FIREBASE_UID))
                 .andExpect(status().isNotFound());
     }
 }

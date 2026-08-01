@@ -60,7 +60,7 @@ class VehicleControllerTest {
         VehicleResponse vehicle = new VehicleResponse(UUID.randomUUID(), "AB123CD", "Toyota", "Corolla", true);
         when(vehicleService.getVehiclesByUser(userId.toString(), FIREBASE_UID)).thenReturn(List.of(vehicle));
 
-        mockMvc.perform(withAuth(get("/api/vehicle/user/{userId}", userId)))
+        mockMvc.perform(withAuth(get("/api/v1/vehicle/user/{userId}", userId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].plate").value("AB123CD"));
     }
@@ -71,7 +71,7 @@ class VehicleControllerTest {
         when(vehicleService.getVehiclesByUser(userId.toString(), FIREBASE_UID))
                 .thenThrow(new NoSuchElementException("Usuario no encontrado: " + userId));
 
-        mockMvc.perform(withAuth(get("/api/vehicle/user/{userId}", userId)))
+        mockMvc.perform(withAuth(get("/api/v1/vehicle/user/{userId}", userId)))
                 .andExpect(status().isNotFound());
     }
 
@@ -81,7 +81,7 @@ class VehicleControllerTest {
         when(vehicleService.getVehiclesByUser(userId.toString(), FIREBASE_UID))
                 .thenThrow(new AccessDeniedException("No tiene permisos sobre el usuario: " + userId));
 
-        mockMvc.perform(withAuth(get("/api/vehicle/user/{userId}", userId)))
+        mockMvc.perform(withAuth(get("/api/v1/vehicle/user/{userId}", userId)))
                 .andExpect(status().isForbidden());
     }
 
@@ -94,7 +94,7 @@ class VehicleControllerTest {
         when(vehicleService.createVehicle(eq(userId.toString()), any(CreateVehicleRequest.class), eq(FIREBASE_UID)))
                 .thenReturn(response);
 
-        mockMvc.perform(withAuth(post("/api/vehicle/user/{userId}", userId))
+        mockMvc.perform(withAuth(post("/api/v1/vehicle/user/{userId}", userId))
                         .contentType("application/json")
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -109,7 +109,7 @@ class VehicleControllerTest {
         when(vehicleService.createVehicle(eq(userId.toString()), any(CreateVehicleRequest.class), eq(FIREBASE_UID)))
                 .thenThrow(new IllegalArgumentException("El usuario ya tiene el máximo de 3 vehículos activos"));
 
-        mockMvc.perform(withAuth(post("/api/vehicle/user/{userId}", userId))
+        mockMvc.perform(withAuth(post("/api/v1/vehicle/user/{userId}", userId))
                         .contentType("application/json")
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
@@ -121,7 +121,7 @@ class VehicleControllerTest {
         VehicleResponse vehicle = new VehicleResponse(id, "AB123CD", "Toyota", "Corolla", true);
         when(vehicleService.getVehicle(id.toString(), FIREBASE_UID)).thenReturn(vehicle);
 
-        mockMvc.perform(withAuth(get("/api/vehicle/{id}", id)))
+        mockMvc.perform(withAuth(get("/api/v1/vehicle/{id}", id)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.plate").value("AB123CD"));
     }
@@ -132,7 +132,7 @@ class VehicleControllerTest {
         when(vehicleService.getVehicle(id.toString(), FIREBASE_UID))
                 .thenThrow(new NoSuchElementException("Vehículo no encontrado: " + id));
 
-        mockMvc.perform(withAuth(get("/api/vehicle/{id}", id)))
+        mockMvc.perform(withAuth(get("/api/v1/vehicle/{id}", id)))
                 .andExpect(status().isNotFound());
     }
 
@@ -142,7 +142,7 @@ class VehicleControllerTest {
         when(vehicleService.getVehicle(id.toString(), FIREBASE_UID))
                 .thenThrow(new AccessDeniedException("No tiene permisos sobre el vehículo: " + id));
 
-        mockMvc.perform(withAuth(get("/api/vehicle/{id}", id)))
+        mockMvc.perform(withAuth(get("/api/v1/vehicle/{id}", id)))
                 .andExpect(status().isForbidden());
     }
 
@@ -153,7 +153,7 @@ class VehicleControllerTest {
         when(vehicleService.createVehicle(eq(userId.toString()), any(CreateVehicleRequest.class), eq(FIREBASE_UID)))
                 .thenThrow(new DataIntegrityViolationException("duplicate key value violates unique constraint \"vehicles_plate_key\""));
 
-        mockMvc.perform(withAuth(post("/api/vehicle/user/{userId}", userId))
+        mockMvc.perform(withAuth(post("/api/v1/vehicle/user/{userId}", userId))
                         .contentType("application/json")
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())
@@ -164,7 +164,7 @@ class VehicleControllerTest {
     void delete_returnsNoContent() throws Exception {
         UUID id = UUID.randomUUID();
 
-        mockMvc.perform(withAuth(delete("/api/vehicle/{id}", id)))
+        mockMvc.perform(withAuth(delete("/api/v1/vehicle/{id}", id)))
                 .andExpect(status().isNoContent());
 
         verify(vehicleService).deleteVehicle(eq(id.toString()), eq(FIREBASE_UID));
@@ -176,7 +176,7 @@ class VehicleControllerTest {
         org.mockito.Mockito.doThrow(new NoSuchElementException("Vehículo no encontrado: " + id))
                 .when(vehicleService).deleteVehicle(id.toString(), FIREBASE_UID);
 
-        mockMvc.perform(withAuth(delete("/api/vehicle/{id}", id)))
+        mockMvc.perform(withAuth(delete("/api/v1/vehicle/{id}", id)))
                 .andExpect(status().isNotFound());
     }
 
@@ -186,7 +186,7 @@ class VehicleControllerTest {
         org.mockito.Mockito.doThrow(new AccessDeniedException("No tiene permisos sobre el vehículo: " + id))
                 .when(vehicleService).deleteVehicle(id.toString(), FIREBASE_UID);
 
-        mockMvc.perform(withAuth(delete("/api/vehicle/{id}", id)))
+        mockMvc.perform(withAuth(delete("/api/v1/vehicle/{id}", id)))
                 .andExpect(status().isForbidden());
     }
 }
