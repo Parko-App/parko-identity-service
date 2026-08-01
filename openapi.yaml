@@ -21,7 +21,7 @@ security:
   - firebaseAuth: []
 
 paths:
-  /api/user:
+  /api/v1/user:
     post:
       tags: [User]
       summary: Registrar un nuevo usuario
@@ -52,7 +52,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /api/user/{id}:
+  /api/v1/user/{id}:
     get:
       tags: [User]
       summary: Obtener un usuario por su firebaseUid
@@ -86,7 +86,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/user/{id}/balance:
+  /api/v1/user/{id}/balance:
     get:
       tags: [User]
       summary: Obtener un usuario junto con su saldo
@@ -106,7 +106,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/user/{id}/vehicles:
+  /api/v1/user/{id}/vehicles:
     get:
       tags: [User]
       summary: Obtener un usuario junto con sus vehículos activos
@@ -126,7 +126,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/user/{id}/full:
+  /api/v1/user/{id}/full:
     get:
       tags: [User]
       summary: Obtener un usuario junto con su saldo y sus vehículos activos
@@ -146,7 +146,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/vehicle/user/{userId}:
+  /api/v1/vehicle/user/{userId}:
     get:
       tags: [Vehicle]
       summary: Listar los vehículos activos de un usuario
@@ -207,7 +207,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /api/vehicle/{id}:
+  /api/v1/vehicle/{id}:
     get:
       tags: [Vehicle]
       summary: Obtener el detalle de un vehículo por su id
