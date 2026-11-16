@@ -261,8 +261,6 @@ class VehicleServiceTest {
         verify(vehicleRepository, never()).save(any());
     }
 
-    // --- H15: tope de altas por usuario y liberacion de la patente al borrar ---
-
     private List<VehicleEntity> registrations(int count, LocalDateTime createdAt, boolean active) {
         List<VehicleEntity> vehicles = new ArrayList<>();
         for (int i = 0; i < count; i++) {

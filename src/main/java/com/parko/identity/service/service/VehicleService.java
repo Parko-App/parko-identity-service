@@ -26,7 +26,6 @@ import java.util.UUID;
 public class VehicleService {
 
     private static final int MAX_ACTIVE_VEHICLES = 3;
-    /** Al borrar un vehiculo su patente queda como "PATENTE#id": libera la patente real sin perder la fila. */
     private static final String RELEASED_PLATE_SEPARATOR = "#";
 
     private final VehicleRepository vehicleRepository;
@@ -58,8 +57,6 @@ public class VehicleService {
     public VehicleResponse createVehicle(String userId, CreateVehicleRequest request, String firebaseUid) {
         UUID uid = parseUserId(userId);
         UserEntity owner = ensureOwnership(uid, firebaseUid);
-        // Serializa las altas de vehiculos del mismo usuario: la fila del usuario queda bloqueada hasta
-        // el commit, asi el conteo de activos de abajo no puede correr en paralelo con otro alta (TOCTOU).
         entityManager.lock(owner, LockModeType.PESSIMISTIC_WRITE);
         ensureActiveVehicleLimitNotReached(uid);
         ensureRegistrationRateNotExceeded(uid);
@@ -81,7 +78,6 @@ public class VehicleService {
         VehicleResponse response = VehicleConverter.toResponse(
                 entity.getId(),
                 com.parko.persistence.core.converters.VehicleConverter.toEmbedded(entity));
-        // un vehiculo borrado guarda "PATENTE#id": al cliente se le muestra la patente real
         return new VehicleResponse(response.id(), visiblePlate(response.plate()), response.brand(), response.model(),
                 response.active());
     }
@@ -93,8 +89,6 @@ public class VehicleService {
             return;
         }
         entity.setActive(false);
-        // La columna plate es unica a nivel global: sin esto la patente quedaba ocupada para siempre
-        // (tambien para su propio dueño) aunque el vehiculo estuviera borrado.
         entity.setPlate(entity.getPlate() + RELEASED_PLATE_SEPARATOR + entity.getId());
         vehicleRepository.save(entity);
     }
@@ -127,11 +121,6 @@ public class VehicleService {
         return user;
     }
 
-    /**
-     * Tope de altas por usuario en las ultimas 24 h, contando tambien los vehiculos ya borrados. Sin esto una
-     * cuenta podia acumular patentes sin limite con el ciclo registrar -> borrar (el tope de 3 activos se libera
-     * al borrar).
-     */
     private void ensureRegistrationRateNotExceeded(UUID userId) {
         LocalDateTime since = LocalDateTime.now().minusDays(1);
         long recentRegistrations = vehicleRepository.findByUserId(userId).stream()
