@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: parko-db-postgres
+    environment:
+      POSTGRES_DB: parko_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      TZ: America/Argentina/Buenos_Aires
+    ports:
+      - "5432:5432"
+    volumes:
+      - parko-db-postgres-data:/var/lib/postgresql/data
+    entrypoint: >
+      bash -c "ln -sf /usr/share/zoneinfo/America/Argentina/Buenos_Aires /usr/share/zoneinfo/America/Buenos_Aires && exec docker-entrypoint.sh postgres"
+
+volumes:
+  parko-db-postgres-data:
