@@ -4,11 +4,15 @@ import com.parko.domain.lib.model.Vehicle;
 import com.parko.identity.service.converter.VehicleConverter;
 import com.parko.identity.service.dto.request.CreateVehicleRequest;
 import com.parko.identity.service.dto.response.VehicleResponse;
+import com.parko.identity.service.exception.RegistrationLimitExceededException;
 import com.parko.persistence.core.model.entity.UserEntity;
 import com.parko.persistence.core.model.embedded.VehicleEmbedded;
 import com.parko.persistence.core.model.entity.VehicleEntity;
 import com.parko.persistence.core.repository.UserRepository;
 import com.parko.persistence.core.repository.VehicleRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,13 +26,20 @@ import java.util.UUID;
 public class VehicleService {
 
     private static final int MAX_ACTIVE_VEHICLES = 3;
+    private static final String RELEASED_PLATE_SEPARATOR = "#";
 
     private final VehicleRepository vehicleRepository;
     private final UserRepository userRepository;
+    private final EntityManager entityManager;
+    private final int maxRegistrationsPerDay;
 
-    public VehicleService(VehicleRepository vehicleRepository, UserRepository userRepository) {
+    public VehicleService(VehicleRepository vehicleRepository, UserRepository userRepository,
+                          EntityManager entityManager,
+                          @Value("${vehicles.max-registrations-per-day:5}") int maxRegistrationsPerDay) {
         this.vehicleRepository = vehicleRepository;
         this.userRepository = userRepository;
+        this.entityManager = entityManager;
+        this.maxRegistrationsPerDay = maxRegistrationsPerDay;
     }
 
     public List<VehicleResponse> getVehiclesByUser(String userId, String firebaseUid) {
@@ -45,8 +56,10 @@ public class VehicleService {
     @Transactional
     public VehicleResponse createVehicle(String userId, CreateVehicleRequest request, String firebaseUid) {
         UUID uid = parseUserId(userId);
-        ensureOwnership(uid, firebaseUid);
+        UserEntity owner = ensureOwnership(uid, firebaseUid);
+        entityManager.lock(owner, LockModeType.PESSIMISTIC_WRITE);
         ensureActiveVehicleLimitNotReached(uid);
+        ensureRegistrationRateNotExceeded(uid);
 
         Vehicle vehicle = new Vehicle(uid, request.plate(), request.brand(), request.model());
 
@@ -62,16 +75,27 @@ public class VehicleService {
 
     public VehicleResponse getVehicle(String id, String firebaseUid) {
         VehicleEntity entity = findOwnedVehicle(id, firebaseUid);
-        return VehicleConverter.toResponse(
+        VehicleResponse response = VehicleConverter.toResponse(
                 entity.getId(),
                 com.parko.persistence.core.converters.VehicleConverter.toEmbedded(entity));
+        return new VehicleResponse(response.id(), visiblePlate(response.plate()), response.brand(), response.model(),
+                response.active());
     }
 
     @Transactional
     public void deleteVehicle(String id, String firebaseUid) {
         VehicleEntity entity = findOwnedVehicle(id, firebaseUid);
+        if (!entity.isActive()) {
+            return;
+        }
         entity.setActive(false);
+        entity.setPlate(entity.getPlate() + RELEASED_PLATE_SEPARATOR + entity.getId());
         vehicleRepository.save(entity);
+    }
+
+    private static String visiblePlate(String plate) {
+        int separator = plate == null ? -1 : plate.indexOf(RELEASED_PLATE_SEPARATOR);
+        return separator < 0 ? plate : plate.substring(0, separator);
     }
 
     private VehicleEntity findOwnedVehicle(String id, String firebaseUid) {
@@ -88,11 +112,23 @@ public class VehicleService {
         return UUID.fromString(userId);
     }
 
-    private void ensureOwnership(UUID userId, String firebaseUid) {
+    private UserEntity ensureOwnership(UUID userId, String firebaseUid) {
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new NoSuchElementException("Usuario no encontrado: " + userId));
         if (!user.getFirebaseUid().equals(firebaseUid)) {
             throw new AccessDeniedException("No tiene permisos sobre el usuario: " + userId);
+        }
+        return user;
+    }
+
+    private void ensureRegistrationRateNotExceeded(UUID userId) {
+        LocalDateTime since = LocalDateTime.now().minusDays(1);
+        long recentRegistrations = vehicleRepository.findByUserId(userId).stream()
+                .filter(vehicle -> vehicle.getCreatedAt() != null && vehicle.getCreatedAt().isAfter(since))
+                .count();
+        if (recentRegistrations >= maxRegistrationsPerDay) {
+            throw new RegistrationLimitExceededException(
+                    "Alcanzaste el máximo de " + maxRegistrationsPerDay + " altas de vehículos por día");
         }
     }
 

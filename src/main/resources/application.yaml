@@ -12,7 +12,10 @@ spring:
     password: ${DB_PASSWORD:password}
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: ${HIBERNATE_DDL_AUTO:validate}
+
+vehicles:
+  max-registrations-per-day: ${VEHICLES_MAX_REGISTRATIONS_PER_DAY:5}
 
 firebase:
   credentials-path: ${FIREBASE_CREDENTIALS_PATH:F:/Repos/parko-2271f-firebase-adminsdk-fbsvc-95314aaf21.json}

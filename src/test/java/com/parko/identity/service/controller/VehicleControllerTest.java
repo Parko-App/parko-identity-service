@@ -103,6 +103,32 @@ class VehicleControllerTest {
     }
 
     @Test
+    void create_registrationLimitExceeded_returnsTooManyRequests() throws Exception {
+        UUID userId = UUID.randomUUID();
+        CreateVehicleRequest request = new CreateVehicleRequest("AB123CD", "Toyota", "Corolla");
+        when(vehicleService.createVehicle(eq(userId.toString()), any(CreateVehicleRequest.class), eq(FIREBASE_UID)))
+                .thenThrow(new com.parko.identity.service.exception.RegistrationLimitExceededException(
+                        "Alcanzaste el máximo de 5 altas de vehículos por día"));
+
+        mockMvc.perform(withAuth(post("/api/v1/vehicle/user/{userId}", userId))
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.message").value("Alcanzaste el máximo de 5 altas de vehículos por día"));
+    }
+
+    @Test
+    void create_malformedJsonBody_returnsBadRequest_notServerError() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(withAuth(post("/api/v1/vehicle/user/{userId}", userId))
+                        .contentType("application/json")
+                        .content("{esto no es json"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("El cuerpo de la solicitud es inválido"));
+    }
+
+    @Test
     void create_activeLimitReached_returnsBadRequest() throws Exception {
         UUID userId = UUID.randomUUID();
         CreateVehicleRequest request = new CreateVehicleRequest("AB123CD", "Toyota", "Corolla");
