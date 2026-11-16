@@ -12,7 +12,14 @@ spring:
     password: ${DB_PASSWORD:password}
   jpa:
     hibernate:
-      ddl-auto: update
+      # validate: no modifica el esquema, falla al arrancar si las entidades no coinciden con las tablas.
+      # El esquema se mantiene con los scripts de parko-postgre-schemas. Para volver al comportamiento anterior
+      # (o en un entorno con base vacia) definir HIBERNATE_DDL_AUTO=update.
+      ddl-auto: ${HIBERNATE_DDL_AUTO:validate}
+
+vehicles:
+  # Tope de altas de vehiculos por usuario en 24 h (cuentan tambien los vehiculos borrados).
+  max-registrations-per-day: ${VEHICLES_MAX_REGISTRATIONS_PER_DAY:5}
 
 firebase:
   credentials-path: ${FIREBASE_CREDENTIALS_PATH:F:/Repos/parko-2271f-firebase-adminsdk-fbsvc-95314aaf21.json}

@@ -2,18 +2,23 @@ package com.parko.identity.service.service;
 
 import com.parko.identity.service.dto.request.CreateVehicleRequest;
 import com.parko.identity.service.dto.response.VehicleResponse;
+import com.parko.identity.service.exception.RegistrationLimitExceededException;
 import com.parko.persistence.core.model.entity.UserEntity;
 import com.parko.persistence.core.model.entity.VehicleEntity;
 import com.parko.persistence.core.repository.UserRepository;
 import com.parko.persistence.core.repository.VehicleRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
@@ -22,6 +27,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -37,13 +43,16 @@ class VehicleServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private EntityManager entityManager;
+
     private VehicleService vehicleService;
     private UUID userId;
     private UserEntity owner;
 
     @BeforeEach
     void setUp() {
-        vehicleService = new VehicleService(vehicleRepository, userRepository);
+        vehicleService = new VehicleService(vehicleRepository, userRepository, entityManager, 5);
         userId = UUID.randomUUID();
         owner = new UserEntity();
         owner.setId(userId);
@@ -77,6 +86,30 @@ class VehicleServiceTest {
                 .isInstanceOf(NoSuchElementException.class);
 
         verify(vehicleRepository, never()).save(any());
+    }
+
+    @Test
+    void createVehicle_locksUserRowBeforeCountingActiveVehicles() {
+        when(userRepository.findById(userId)).thenReturn(Optional.of(owner));
+        when(vehicleRepository.findByUserIdAndActiveTrue(userId)).thenReturn(List.of());
+        when(vehicleRepository.save(any(VehicleEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        vehicleService.createVehicle(userId.toString(), validRequest(), FIREBASE_UID);
+
+        InOrder order = inOrder(entityManager, vehicleRepository);
+        order.verify(entityManager).lock(owner, LockModeType.PESSIMISTIC_WRITE);
+        order.verify(vehicleRepository).findByUserIdAndActiveTrue(userId);
+        order.verify(vehicleRepository).save(any(VehicleEntity.class));
+    }
+
+    @Test
+    void createVehicle_notOwner_doesNotLockTheUserRow() {
+        when(userRepository.findById(userId)).thenReturn(Optional.of(owner));
+
+        assertThatThrownBy(() -> vehicleService.createVehicle(userId.toString(), validRequest(), "someone-else-uid"))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(entityManager, never()).lock(any(), any());
     }
 
     @Test
@@ -226,6 +259,91 @@ class VehicleServiceTest {
                 .isInstanceOf(AccessDeniedException.class);
 
         verify(vehicleRepository, never()).save(any());
+    }
+
+    // --- H15: tope de altas por usuario y liberacion de la patente al borrar ---
+
+    private List<VehicleEntity> registrations(int count, LocalDateTime createdAt, boolean active) {
+        List<VehicleEntity> vehicles = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            VehicleEntity vehicle = activeVehicle(owner);
+            vehicle.setActive(active);
+            vehicle.setCreatedAt(createdAt);
+            vehicles.add(vehicle);
+        }
+        return vehicles;
+    }
+
+    @Test
+    void createVehicle_throwsRegistrationLimit_whenTooManyRegistrationsInTheLastDay_evenIfTheyWereDeleted() {
+        when(userRepository.findById(userId)).thenReturn(Optional.of(owner));
+        when(vehicleRepository.findByUserIdAndActiveTrue(userId)).thenReturn(List.of());
+        when(vehicleRepository.findByUserId(userId)).thenReturn(registrations(5, LocalDateTime.now().minusHours(1), false));
+
+        assertThatThrownBy(() -> vehicleService.createVehicle(userId.toString(), validRequest(), FIREBASE_UID))
+                .isInstanceOf(RegistrationLimitExceededException.class);
+
+        verify(vehicleRepository, never()).save(any());
+    }
+
+    @Test
+    void createVehicle_allowsTheRegistration_whenBelowTheDailyLimit() {
+        when(userRepository.findById(userId)).thenReturn(Optional.of(owner));
+        when(vehicleRepository.findByUserIdAndActiveTrue(userId)).thenReturn(List.of());
+        when(vehicleRepository.findByUserId(userId)).thenReturn(registrations(4, LocalDateTime.now().minusHours(1), false));
+        when(vehicleRepository.save(any(VehicleEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        VehicleResponse response = vehicleService.createVehicle(userId.toString(), validRequest(), FIREBASE_UID);
+
+        assertThat(response.plate()).isEqualTo("AB123CD");
+    }
+
+    @Test
+    void createVehicle_ignoresRegistrationsOlderThanADay() {
+        when(userRepository.findById(userId)).thenReturn(Optional.of(owner));
+        when(vehicleRepository.findByUserIdAndActiveTrue(userId)).thenReturn(List.of());
+        when(vehicleRepository.findByUserId(userId)).thenReturn(registrations(9, LocalDateTime.now().minusDays(2), false));
+        when(vehicleRepository.save(any(VehicleEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(vehicleService.createVehicle(userId.toString(), validRequest(), FIREBASE_UID).active()).isTrue();
+    }
+
+    @Test
+    void deleteVehicle_releasesThePlate_soItCanBeRegisteredAgain() {
+        VehicleEntity vehicle = activeVehicle(owner);
+        when(vehicleRepository.findById(vehicle.getId())).thenReturn(Optional.of(vehicle));
+
+        vehicleService.deleteVehicle(vehicle.getId().toString(), FIREBASE_UID);
+
+        assertThat(vehicle.isActive()).isFalse();
+        assertThat(vehicle.getPlate()).isEqualTo("AB123CD#" + vehicle.getId());
+        verify(vehicleRepository).save(vehicle);
+    }
+
+    @Test
+    void deleteVehicle_isIdempotent_whenTheVehicleWasAlreadyDeleted() {
+        VehicleEntity vehicle = activeVehicle(owner);
+        vehicle.setActive(false);
+        vehicle.setPlate("AB123CD#" + vehicle.getId());
+        when(vehicleRepository.findById(vehicle.getId())).thenReturn(Optional.of(vehicle));
+
+        vehicleService.deleteVehicle(vehicle.getId().toString(), FIREBASE_UID);
+
+        assertThat(vehicle.getPlate()).isEqualTo("AB123CD#" + vehicle.getId());
+        verify(vehicleRepository, never()).save(any());
+    }
+
+    @Test
+    void getVehicle_showsTheRealPlate_ofADeletedVehicle() {
+        VehicleEntity vehicle = activeVehicle(owner);
+        vehicle.setActive(false);
+        vehicle.setPlate("AB123CD#" + vehicle.getId());
+        when(vehicleRepository.findById(vehicle.getId())).thenReturn(Optional.of(vehicle));
+
+        VehicleResponse response = vehicleService.getVehicle(vehicle.getId().toString(), FIREBASE_UID);
+
+        assertThat(response.plate()).isEqualTo("AB123CD");
+        assertThat(response.active()).isFalse();
     }
 
     private VehicleEntity activeVehicle(UserEntity owner) {
